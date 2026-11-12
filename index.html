@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f2a44">
+<title>StoryVoice · 녹음과 받아쓰기 (M1)</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%F0%9F%93%96%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+<header>
+  <h1>StoryVoice <small>M1 · 녹음·받아쓰기</small></h1>
+  <button id="btnParent" class="ghost">부모 설정</button>
+</header>
+
+<div id="envWarn" class="warn" hidden></div>
+
+<main id="main">
+  <section class="card">
+    <h2>1. 낭독 녹음</h2>
+    <p id="micState" class="state">마이크 상태 확인 중…</p>
+    <div class="rec-row">
+      <button id="btnRec" class="primary big">● 녹음 시작</button>
+      <div class="timer"><span id="timer">0:00</span><span class="muted"> / 1:30</span></div>
+    </div>
+    <canvas id="meter" height="36" aria-label="음량 막대"></canvas>
+    <label class="check"><input type="checkbox" id="liveStt"> 녹음하면서 실시간 받아쓰기 (무료, 지원 브라우저만)</label>
+    <p id="liveText" class="live" hidden></p>
+    <div id="playWrap" hidden>
+      <p class="muted" id="takeInfo"></p>
+      <audio id="player" controls preload="metadata"></audio>
+    </div>
+    <div class="upload">
+      <span class="muted">마이크가 안 되면</span>
+      <label class="filebtn">음성 파일 올리기<input type="file" id="fileIn" accept="audio/*,.m4a,.mp3,.wav,.webm,.ogg,.aac"></label>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>2. 받아쓰기</h2>
+    <label for="method">방식</label>
+    <select id="method">
+      <option value="whisper-base">무료 · 기기 안에서 (빠름, 약 80MB 한 번 다운로드)</option>
+      <option value="whisper-small">무료 · 기기 안에서 (더 정확, 약 250MB 한 번 다운로드)</option>
+      <option value="live">무료 · 실시간 받아쓰기 결과 사용</option>
+      <option value="openai">내 키 · OpenAI whisper-1</option>
+      <option value="xai">내 키 · xAI 받아쓰기</option>
+    </select>
+    <p id="methodNote" class="muted small"></p>
+    <button id="btnStt" class="primary" disabled>받아쓰기 시작</button>
+    <div id="progWrap" hidden><progress id="prog" max="100" value="0"></progress> <span id="progText" class="muted small"></span></div>
+    <p id="sttErr" class="err" hidden></p>
+    <div id="resultWrap" hidden>
+      <label for="transcript">받아쓴 글 (고칠 수 있어요)</label>
+      <textarea id="transcript" rows="6"></textarea>
+      <p class="muted small" id="timingNote"></p>
+      <ol id="segments" class="segments"></ol>
+    </div>
+  </section>
+
+  <p class="muted small foot">녹음과 키는 이 기기에만 저장됩니다. 무료 '기기 안에서' 방식은 음성이 기기 밖으로 나가지 않습니다. 실시간 받아쓰기는 브라우저 회사 서버(Chrome은 Google)로 음성이 전송될 수 있습니다.</p>
+</main>
+
+<dialog id="dlgPin">
+  <h3 id="pinTitle">부모 확인</h3>
+  <p class="muted small" id="pinHelp"></p>
+  <input id="pinIn" type="password" inputmode="numeric" maxlength="8" placeholder="숫자 4자리 이상" autocomplete="off">
+  <p id="pinErr" class="err" hidden></p>
+  <div class="row"><button id="pinCancel" class="ghost">취소</button><button id="pinOk" class="primary">확인</button></div>
+</dialog>
+
+<dialog id="dlgParent">
+  <h3>부모 설정 · 내 API 키</h3>
+  <p class="muted small">키는 이 기기 안에만 암호화해 저장되고, 받아쓰기 때 브라우저에서 해당 회사로 직접 보냅니다. StoryVoice 서버로는 가지 않습니다.</p>
+  <label for="keyOpenai">OpenAI 키</label>
+  <input id="keyOpenai" type="password" placeholder="sk-…" autocomplete="off">
+  <label for="keyXai">xAI 키</label>
+  <input id="keyXai" type="password" placeholder="xai-…" autocomplete="off">
+  <p id="keyMsg" class="muted small"></p>
+  <div class="row wrap">
+    <button id="keyDelete" class="ghost">키 모두 지우기</button>
+    <button id="keyClose" class="ghost">닫기</button>
+    <button id="keySave" class="primary">저장</button>
+  </div>
+</dialog>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
