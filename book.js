@@ -1,4 +1,5 @@
 // M2: 받아쓴 글 → 장면 → 주인공 → 8컷 → 그림책(저장·보기·아이 모드)
+import { makeMovie, shareMovie, movieSupport } from "./movie.js";
 import { splitWithGroq, splitRule, computeTiming, characterPrompt, panelPrompt, SCENES } from "./story.js";
 import { generateWithRetry, shrink, QuotaError } from "./imagegen.js";
 import { saveBook, listBooks, getBook, deleteBook, toWav, persist } from "./books.js";
@@ -135,7 +136,7 @@ async function drawPanel(i, t) {
     p.blob = await generateWithRetry(
       { prompt: panelPrompt(s, mk.draft.character_en, true), refBlob: mk.ref, seed: mk.baseSeed + i + p.seedBump * 1000, width: 768, height: 768, token: t },
       { signal: mk.abort.signal, onWait: (sec) => { p.status = "wait"; p.msg = `사용량 초과 · ${sec}초 뒤 다시`; renderPanels(); } });
-    p.status = "ok";
+    p.status = "ok"; p.msg = "";
   } catch (e) {
     p.status = "fail"; p.blob = null;
     p.msg = e.name === "AbortError" ? "멈췄어요" : e instanceof QuotaError ? "무료 그림 사용량을 다 썼어요" : e.message;
@@ -172,6 +173,9 @@ async function saveCurrent() {
   try {
     const { wav, duration } = await toWav(take);
     const res = ctx.getResult() || {};
+    // 그림을 그리는 동안 부모가 고친 제목·장면 글도 반영(그림 설명·옷은 그린 그대로 둠)
+    mk.draft.title = $("bookTitleIn").value.trim() || mk.draft.title || "우리 그림책";
+    [...$("sceneList").children].forEach((li, i) => { const v = li.querySelector(".s-ko").value.trim(); if (v && mk.draft.scenes[i]) mk.draft.scenes[i].ko = v; });
     const { scenes, mode } = computeTiming(mk.draft.scenes, res.segs || [], duration);
     const book = {
       id: "b" + Date.now(), createdAt: Date.now(), title: mk.draft.title, audio: wav, duration, timingMode: mode, engine: res.engine || "",
@@ -202,6 +206,7 @@ export async function renderLibrary() {
         <span class="book-title">${esc(b.title)}</span>
         <span class="muted tiny-t">${new Date(b.createdAt).toLocaleDateString("ko-KR")} · ${b.scenes.length}장면 · ${Math.round(b.duration)}초</span>
       </button>
+      ${b.movie ? `<button class="ghost tiny mv" data-id="${b.id}" aria-label="${esc(b.title)} 영상 보기">영상 보기</button>` : ""}
       <button class="ghost tiny del parent-only" data-id="${b.id}" aria-label="${esc(b.title)} 지우기">지우기</button>`;
     ul.append(li);
   }
@@ -224,6 +229,7 @@ export async function openViewer(id) {
     tr.append(sec);
   });
   $("vTiming").textContent = b.timingMode === "timestamps" ? "" : "소리 구간은 글자 수 비율로 나눈 대략치예요.";
+  $("vMovie").hidden = document.body.classList.contains("child") && !b.movie;
   $("viewer").hidden = false; document.body.classList.add("noscroll");
   tr.scrollLeft = 0; setPage(0, false); updateAutoBtn();
 }
@@ -260,6 +266,58 @@ function playPage(i) {
 }
 function updateAutoBtn() { $("vAuto").classList.toggle("on", V.auto); $("vAuto").setAttribute("aria-pressed", String(V.auto)); $("vAutoLabel").textContent = V.auto ? "자동 넘기기 켜짐" : "자동 넘기기"; }
 
+// ---------- 짧은 영상(M3) ----------
+const M = { abort: null, url: "" };
+function fmtSize(n) { return n > 1048576 ? (n / 1048576).toFixed(1) + "MB" : Math.round(n / 1024) + "KB"; }
+function showMovie() {
+  const mv = V.book && V.book.movie, vid = $("mVideo");
+  if (M.url) { URL.revokeObjectURL(M.url); M.url = ""; }
+  if (mv) {
+    M.url = URL.createObjectURL(mv.blob); vid.src = M.url + "#t=0.8"; /* 첫 화면이 어둡지 않게 */ vid.hidden = false; $("mEmpty").hidden = true;
+    $("mInfo").textContent = `${mv.ext.toUpperCase()} · ${fmtSize(mv.blob.size)}`;
+    $("mMake").textContent = "다시 만들기"; $("mShare").hidden = false; $("mSubs").checked = mv.subtitles !== false;
+  } else {
+    vid.removeAttribute("src"); vid.hidden = true; $("mEmpty").hidden = false; $("mInfo").textContent = "";
+    $("mEmpty").textContent = document.body.classList.contains("child") ? "아직 영상이 없어요." : "아직 영상이 없어요. 아래 ‘영상 만들기’를 눌러 주세요.";
+    $("mMake").textContent = "영상 만들기"; $("mShare").hidden = true;
+  }
+}
+export function openMovie() {
+  if (!V.book) return;
+  stopAudio(); V.auto = false; updateAutoBtn();
+  $("mTitle").textContent = V.book.title + " · 영상";
+  const sup = movieSupport();
+  if (!sup.webcodecs && !sup.recorder) $("mNote").textContent = "이 브라우저는 영상 만들기를 지원하지 않아요. 최신 Chrome에서 해 주세요.";
+  showMovie(); $("movie").hidden = false;
+}
+function closeMovie() { if (M.abort) M.abort.abort(); const v = $("mVideo"); v.pause(); $("movie").hidden = true; }
+async function doMakeMovie() {
+  if (!V.book || M.abort) return;
+  const book = V.book; M.abort = new AbortController();
+  $("mMake").disabled = true; $("mShare").disabled = true; $("mCancel").hidden = false; $("mProg").hidden = false; $("mProg").value = 0;
+  $("mNote").textContent = "영상을 만드는 중… 화면을 켜 둔 채로 기다려 주세요.";
+  const t0 = performance.now();
+  try {
+    const res = await makeMovie(book, { subtitles: $("mSubs").checked, night: document.documentElement.dataset.theme === "night" },
+      (f) => { $("mProg").value = f; $("mNote").textContent = `영상을 만드는 중… ${Math.round(f * 100)}%`; }, M.abort.signal);
+    book.movie = { blob: res.blob, mime: res.mime, ext: res.ext, engine: res.engine, subtitles: $("mSubs").checked, createdAt: Date.now() };
+    await saveBook(book); persist();
+    showMovie(); renderLibrary();
+    $("mNote").textContent = `다 만들었어요! (${((performance.now() - t0) / 1000).toFixed(0)}초 · ${res.ext.toUpperCase()}) 이 기기에 저장돼서 아이 모드에서도 볼 수 있어요. ‘저장·공유’로 갤러리·카톡 등에 보낼 수 있어요.`;
+  } catch (e) {
+    $("mNote").textContent = e.name === "AbortError" ? "멈췄어요." : "영상을 만들지 못했어요: " + (e.message || e);
+  } finally {
+    M.abort = null; $("mMake").disabled = false; $("mShare").disabled = false; $("mCancel").hidden = true; $("mProg").hidden = true;
+  }
+}
+async function doShareMovie() {
+  if (!V.book || !V.book.movie) return;
+  try {
+    const r = await shareMovie(V.book, V.book.movie);
+    $("mNote").textContent = r === "downloaded" ? "영상 파일을 내려받았어요." : r === "shared" ? "공유 창을 열었어요." : "";
+  } catch (e) { $("mNote").textContent = "저장·공유하지 못했어요: " + (e.message || e); }
+}
+
 // ---------- 아이 모드 ----------
 export function applyChild(on) {
   document.body.classList.toggle("child", on);
@@ -284,10 +342,16 @@ export function initBook(c) {
   };
   $("bookList").onclick = async (e) => {
     const o = e.target.closest(".book-open"); if (o) return openViewer(o.dataset.id);
+    const mvb = e.target.closest(".mv"); if (mvb) { await openViewer(mvb.dataset.id); return openMovie(); }
     const d = e.target.closest(".del");
     if (d && !document.body.classList.contains("child") && confirm("이 그림책을 지울까요? 되돌릴 수 없어요.")) { await deleteBook(d.dataset.id); renderLibrary(); }
   };
   $("vClose").onclick = closeViewer;
+  $("vMovie").onclick = openMovie;
+  $("mClose").onclick = closeMovie;
+  $("mMake").onclick = doMakeMovie;
+  $("mShare").onclick = doShareMovie;
+  $("mCancel").onclick = () => M.abort && M.abort.abort();
   $("vPrev").onclick = () => { V.auto = false; updateAutoBtn(); stopAudio(); setPage(V.i - 1); };
   $("vNext").onclick = () => { V.auto = false; updateAutoBtn(); stopAudio(); setPage(V.i + 1); };
   $("vPlay").onclick = () => { if (V.playing) { stopAudio(); V.auto = false; updateAutoBtn(); } else playPage(V.i); };
@@ -300,6 +364,7 @@ export function initBook(c) {
     }, 120);
   });
   document.addEventListener("keydown", (e) => {
+    if (!$("movie").hidden) { if (e.key === "Escape") closeMovie(); return; }
     if ($("viewer").hidden) return;
     if (e.key === "ArrowRight") $("vNext").click(); else if (e.key === "ArrowLeft") $("vPrev").click(); else if (e.key === "Escape") closeViewer();
   });
@@ -311,4 +376,4 @@ export function initBook(c) {
   applyChild(localStorage.getItem("sv-child") === "1");
   renderLibrary();
 }
-window.__svBook = { mk, V, openViewer, renderLibrary, renderPanels }; // 자동 점검용
+window.__svBook = { mk, V, openViewer, renderLibrary, renderPanels, openMovie }; // 자동 점검용

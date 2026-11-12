@@ -189,6 +189,7 @@
   <div class="vbar">
     <button id="vClose" class="icon-btn" aria-label="닫기"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
     <div class="vhead"><span id="vTitle" class="vtitle"></span><span id="vPage" class="muted small"></span></div>
+    <button id="vMovie" class="pill" aria-label="짧은 영상"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2.5"/><path d="M16 10l5-3v10l-5-3z"/></svg><span>영상</span></button>
     <button id="vAuto" class="pill" aria-pressed="false"><span id="vAutoLabel">자동 넘기기</span></button>
   </div>
   <div id="vTrack" class="vtrack"></div>
@@ -202,6 +203,27 @@
     </div>
   </div>
   <audio id="vAudio" preload="auto"></audio>
+</div>
+
+<div id="movie" class="viewer movie" hidden role="dialog" aria-modal="true" aria-labelledby="mTitle">
+  <div class="vbar">
+    <button id="mClose" class="icon-btn" aria-label="그림책으로 돌아가기"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <div class="vhead"><span id="mTitle" class="vtitle">짧은 영상</span><span id="mInfo" class="muted small"></span></div>
+  </div>
+  <div class="mstage">
+    <video id="mVideo" controls playsinline preload="metadata" hidden></video>
+    <p id="mEmpty" class="muted mempty">아직 영상이 없어요.</p>
+  </div>
+  <div class="vctl mctl parent-only">
+    <label class="mini mcheck"><input id="mSubs" type="checkbox" checked> 장면 글을 자막으로 넣기</label>
+    <div class="row">
+      <button id="mMake" class="primary">영상 만들기</button>
+      <button id="mShare" class="ghost" hidden>저장·공유</button>
+      <button id="mCancel" class="ghost" hidden>멈추기</button>
+    </div>
+    <progress id="mProg" max="1" value="0" hidden></progress>
+    <p id="mNote" class="muted small" role="status">그림 8장과 낭독으로 세로 영상(MP4)을 만들어요. 인터넷이 없어도 이 기기에서 만들어져요.</p>
+  </div>
 </div>
 
 <dialog id="dlgPin" aria-labelledby="pinTitle">
