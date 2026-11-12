@@ -31,7 +31,9 @@ const state = { blob: null, name: "", live: { final: [], interim: "", startedAt:
 
 // ---------- 환경 점검 ----------
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const isApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+// 안드로이드 앱(WebView)에는 음성 인식 객체가 있어도 실제로 동작하지 않아 앱에서는 끔
+const SR = isApp ? null : (window.SpeechRecognition || window.webkitSpeechRecognition);
 const warn = [];
 let inFrame = false;
 try { inFrame = window.top !== window.self; } catch { inFrame = true; }
@@ -46,7 +48,9 @@ function setMic(text, cls) {
   el.textContent = text;
   el.className = "state " + (cls || "");
 }
-const deniedHelp = isIOS
+const deniedHelp = isApp
+  ? "마이크가 거부되어 있어요.\n휴대폰 설정 → 애플리케이션 → 스토리보이스 → 권한 → 마이크 → '앱 사용 중에만 허용'으로 바꾼 뒤 앱을 다시 열어 주세요."
+  : isIOS
   ? "마이크가 거부되어 있어요.\n아이폰: 주소창 왼쪽 'ㄱㄱ(aA)' → 웹사이트 설정 → 마이크 → 허용. 또는 설정 앱 → Safari → 마이크 → 허용 후 새로고침."
   : "마이크가 거부되어 있어요.\n안드로이드 Chrome: 주소창 왼쪽 자물쇠(또는 설정) 아이콘 → 권한 → 마이크 → 허용 후 새로고침.";
 
