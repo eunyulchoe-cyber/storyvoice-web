@@ -41,7 +41,7 @@ export async function loadKey(name) {
   const buf = await crypto.subtle.decrypt({ name: "AES-GCM", iv: rec.iv }, await masterKey(), rec.data);
   return new TextDecoder().decode(buf);
 }
-export async function clearKeys() { await del("key:openai"); await del("key:xai"); }
+export async function clearKeys() { for (const k of ["openai", "xai", "groq", "hf"]) await del("key:" + k); }
 
 // 부모 PIN (해시만 저장)
 async function sha(s) {

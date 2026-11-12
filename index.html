@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#FFF8EE">
-<meta name="description" content="엄마·아빠가 읽어 준 목소리를 글로 받아쓰는 StoryVoice 첫 단계(M1)">
+<meta name="description" content="엄마·아빠가 읽어 준 목소리로 우리 아이만의 그림책을 만드는 StoryVoice">
 <title>StoryVoice · 내 목소리로 읽어 주기</title>
 <script>
   // 깜빡임 없이 테마 먼저 정하기: 저장된 선택(낮/밤) 또는 자동(19시~6시 밤)
@@ -33,6 +33,7 @@
   </div>
   <div class="top-actions">
     <button id="btnTheme" class="icon-btn" aria-label="화면 밝기: 자동"><span id="themeIcon" aria-hidden="true"></span><span id="themeLabel" class="sr-label">자동</span></button>
+    <button id="btnChild" class="pill child-btn">아이 모드</button>
     <button id="btnParent" class="pill">
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
       부모 설정
@@ -43,8 +44,9 @@
 <div id="envWarn" class="warn" role="alert" hidden></div>
 
 <main id="main">
+  <p class="child-hello">읽어 준 그림책을 골라 보세요 📚</p>
   <!-- 소개: 무엇을 하는 앱인지, 지금 되는 것과 준비 중인 것 -->
-  <section class="hero card" aria-labelledby="heroTitle">
+  <section class="hero card parent-only" aria-labelledby="heroTitle">
     <div class="hero-art" aria-hidden="true">
       <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice">
         <defs>
@@ -77,23 +79,23 @@
     <ol class="journey">
       <li class="now"><b>1</b><span>책을 소리 내어 읽어 주세요</span><em>지금 가능</em></li>
       <li class="now"><b>2</b><span>목소리를 글로 받아써요</span><em>지금 가능</em></li>
-      <li class="soon"><b>3</b><span>그림책으로 만들어요</span><em>준비 중</em></li>
+      <li class="now"><b>3</b><span>8장 그림책으로 만들어요</span><em>지금 가능</em></li>
     </ol>
-    <p class="fine">지금은 첫 단계(녹음·받아쓰기)만 돼요. 위 그림과 글자 빛남은 앞으로의 모습을 보여 주는 샘플이에요.</p>
+    <p class="fine">그림은 무료 AI(FLUX.2 klein)로 그려요. 위 그림은 샘플이에요. 아이에게는 ‘아이 모드’로 완성된 책만 보여 줄 수 있어요.</p>
     <a href="#recCard" class="cta">읽어 주러 가기</a>
   </section>
 
   <!-- 1. 녹음 -->
-  <section class="card rec" id="recCard" aria-labelledby="recTitle">
+  <section class="card rec parent-only" id="recCard" aria-labelledby="recTitle">
     <h2 id="recTitle"><span class="step">1</span> 읽어 주기</h2>
     <div class="prompt">
       <p class="prompt-tip" id="tip">아이에게 말하듯이, 천천히 읽어 주세요.</p>
       <p class="prompt-text">“작은 여우가 달빛 아래 숲길을 걸었어요. 개울을 건너고, 오래된 나무 아래에서 작은 집을 찾았지요.”</p>
-      <p class="prompt-sub">이 문장이나, 좋아하는 책 한 쪽을 읽어도 돼요. (최대 1분 30초)</p>
+      <p class="prompt-sub">이 문장이나, 좋아하는 책 한 쪽을 읽어도 돼요. (최대 3분)</p>
     </div>
     <p id="micState" class="state" role="status" aria-live="polite">마이크 상태 확인 중…</p>
     <canvas id="meter" aria-label="목소리 물결" role="img"></canvas>
-    <div class="timer" aria-live="off"><span id="timer">0:00</span><span class="muted"> / 1:30</span></div>
+    <div class="timer" aria-live="off"><span id="timer">0:00</span><span class="muted"> / 3:00</span></div>
     <div class="rec-wrap">
       <button id="btnRec" class="rec-btn" aria-label="녹음 시작">
         <span class="ring" aria-hidden="true"></span>
@@ -115,13 +117,15 @@
   </section>
 
   <!-- 2. 받아쓰기 -->
-  <section class="card" aria-labelledby="sttTitle">
+  <section class="card parent-only" id="sttCard" aria-labelledby="sttTitle">
     <h2 id="sttTitle"><span class="step">2</span> 글로 받아쓰기</h2>
     <label for="method">어떻게 받아쓸까요?</label>
     <select id="method">
       <option value="whisper-base">무료 · 기기 안에서 (빠름, 처음 한 번 약 80MB)</option>
       <option value="whisper-small">무료 · 기기 안에서 (더 정확, 처음 한 번 약 250MB)</option>
       <option value="live">무료 · 실시간 받아쓰기 결과 쓰기</option>
+      <option value="groq-turbo">무료 내 키 · Groq Whisper (빠르고 정확, 추천)</option>
+      <option value="groq-v3">무료 내 키 · Groq Whisper large-v3 (가장 정확)</option>
       <option value="openai">내 키 · OpenAI whisper-1</option>
       <option value="xai">내 키 · xAI 받아쓰기</option>
     </select>
@@ -138,8 +142,67 @@
     </div>
   </section>
 
-  <p class="muted small foot">녹음과 키는 이 기기에만 저장돼요. 무료 ‘기기 안에서’ 방식은 목소리가 기기 밖으로 나가지 않아요. 실시간 받아쓰기는 브라우저 회사 서버(Chrome은 Google)로 음성이 갈 수 있어요.</p>
+
+  <!-- 3. 그림책 만들기 -->
+  <section class="card parent-only" id="bookCard" aria-labelledby="bookTitle">
+    <h2 id="bookTitle"><span class="step">3</span> 그림책 만들기</h2>
+    <ol class="mini-steps"><li>장면 나누기</li><li>주인공 정하기</li><li>8장 그리기</li></ol>
+    <button id="btnSplit" class="primary wide">받아쓴 글로 장면 나누기</button>
+    <p id="splitNote" class="muted small pre" role="status"></p>
+    <p id="bookErr" class="err" role="alert" hidden></p>
+    <div id="sceneWrap" hidden>
+      <label for="bookTitleIn">책 제목</label>
+      <input id="bookTitleIn" type="text" maxlength="40">
+      <label for="charIn">주인공 모습 <small class="muted">(모든 그림에 똑같이 들어가요 · 영어가 가장 정확해요)</small></label>
+      <textarea id="charIn" rows="3" class="plain" placeholder="예: a small white bunny girl with long ears, round black eyes, a yellow hooded raincoat with wooden buttons and red rain boots"></textarea>
+      <p id="charKo" class="muted small"></p>
+      <p class="muted small">장면 글과 그림 설명을 눌러서 고칠 수 있어요.</p>
+      <ol id="sceneList" class="scene-list"></ol>
+      <button id="btnChar" class="primary wide">이 장면들로 주인공 그리기</button>
+    </div>
+    <div id="charWrap" class="char-wrap" hidden>
+      <h3 class="sub">주인공 정하기</h3>
+      <div class="char-box"><img id="charImg" alt="주인공 기준 그림" hidden><p id="charState" class="slot-state pre" role="status"></p></div>
+      <div class="row"><button id="btnCharAgain" class="ghost">다시 그리기</button><button id="btnCharOk" class="primary" disabled>이 주인공으로 정하기</button></div>
+    </div>
+    <div id="panelWrap" hidden>
+      <h3 class="sub">8장 그리기</h3>
+      <p id="panelNote" class="muted small pre"></p>
+      <div class="prog"><progress id="panelProg" max="8" value="0"></progress> <span id="panelProgText" class="muted small"></span></div>
+      <ol id="panelGrid" class="panel-grid"></ol>
+      <p id="saveHint" class="muted small" role="status"></p>
+      <div class="row wrap"><button id="btnStop" class="ghost" hidden>멈추기</button><button id="btnRetryAll" class="ghost" hidden>실패한 장면 모두 다시 그리기</button><span class="spacer"></span><button id="btnSaveBook" class="primary" disabled>그림책 저장하고 보기</button></div>
+    </div>
+  </section>
+
+  <!-- 내 그림책 -->
+  <section class="card" id="libCard" aria-labelledby="libTitle">
+    <h2 id="libTitle"><span class="step">📚</span> 내 그림책</h2>
+    <p id="libEmpty" class="muted small">아직 만든 그림책이 없어요.</p>
+    <ul id="bookList" class="book-list"></ul>
+  </section>
+  <p class="muted small foot parent-only">녹음과 키는 이 기기에만 저장돼요. 무료 ‘기기 안에서’ 방식은 목소리가 기기 밖으로 나가지 않아요. 실시간 받아쓰기는 브라우저 회사 서버(Chrome은 Google)로 음성이 갈 수 있어요.</p>
 </main>
+
+
+<div id="viewer" class="viewer" hidden role="dialog" aria-modal="true" aria-labelledby="vTitle">
+  <div class="vbar">
+    <button id="vClose" class="icon-btn" aria-label="닫기"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <div class="vhead"><span id="vTitle" class="vtitle"></span><span id="vPage" class="muted small"></span></div>
+    <button id="vAuto" class="pill" aria-pressed="false"><span id="vAutoLabel">자동 넘기기</span></button>
+  </div>
+  <div id="vTrack" class="vtrack"></div>
+  <div class="vctl">
+    <div class="vbarline"><span id="vSeg"></span></div>
+    <p id="vTiming" class="muted tiny-t"></p>
+    <div class="vbtns">
+      <button id="vPrev" class="icon-btn big" aria-label="앞 쪽"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <button id="vPlay" class="play-btn" aria-label="이 쪽 듣기"><svg class="ic-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg><svg class="ic-pause" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button>
+      <button id="vNext" class="icon-btn big" aria-label="다음 쪽"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+    </div>
+  </div>
+  <audio id="vAudio" preload="auto"></audio>
+</div>
 
 <dialog id="dlgPin" aria-labelledby="pinTitle">
   <div class="dlg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
@@ -152,7 +215,19 @@
 
 <dialog id="dlgParent" aria-labelledby="parentTitle">
   <h3 id="parentTitle">부모 설정</h3>
-  <p class="muted small">무료 방식은 키 없이 쓸 수 있어요. 더 정확한 받아쓰기를 원하면 내 API 키를 넣어 주세요.</p>
+  <p class="muted small">무료 키 두 개(Groq, Hugging Face)만 넣으면 받아쓰기부터 그림까지 무료로 쓸 수 있어요.</p>
+  <div class="keybox">
+    <div class="keyhead"><label for="keyGroq">Groq 키 <small class="free">무료</small></label><span id="stGroq" class="kstate">없음</span></div>
+    <div class="keyrow"><input id="keyGroq" type="password" placeholder="gsk_…" autocomplete="off" spellcheck="false"><button class="ghost show" data-for="keyGroq" aria-label="Groq 키 보기">보기</button></div>
+    <p class="khelp">빠르고 정확한 받아쓰기 + 장면 자동 나누기. 만들기: console.groq.com 가입 → API Keys → Create API Key</p>
+  </div>
+  <div class="keybox">
+    <div class="keyhead"><label for="keyHf">Hugging Face 토큰 <small class="free">무료</small></label><span id="stHf" class="kstate">없음</span></div>
+    <div class="keyrow"><input id="keyHf" type="password" placeholder="hf_…" autocomplete="off" spellcheck="false"><button class="ghost show" data-for="keyHf" aria-label="HF 토큰 보기">보기</button></div>
+    <p class="khelp">그림 그리기(하루 무료 GPU 시간). 만들기: huggingface.co 가입 → 이메일 인증 → Settings → Access Tokens → New token(Read)</p>
+  </div>
+  <button id="keyTest" class="ghost tiny-btn">키 확인해 보기</button>
+  <details class="paid"><summary>유료 키(선택) — 쓴 만큼 키 주인에게 청구</summary>
   <div class="keybox">
     <div class="keyhead"><label for="keyOpenai">OpenAI 키</label><span id="stOpenai" class="kstate">없음</span></div>
     <div class="keyrow"><input id="keyOpenai" type="password" placeholder="sk-…" autocomplete="off" spellcheck="false"><button class="ghost show" data-for="keyOpenai" aria-label="OpenAI 키 보기">보기</button></div>
@@ -161,7 +236,8 @@
     <div class="keyhead"><label for="keyXai">xAI 키</label><span id="stXai" class="kstate">없음</span></div>
     <div class="keyrow"><input id="keyXai" type="password" placeholder="xai-…" autocomplete="off" spellcheck="false"><button class="ghost show" data-for="keyXai" aria-label="xAI 키 보기">보기</button></div>
   </div>
-  <p class="safe"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/></svg>키는 이 기기 안에 암호화해 저장하고, 받아쓰기 때 브라우저에서 해당 회사로 바로 보내요. StoryVoice 서버로는 가지 않아요.</p>
+  </details>
+  <p class="safe"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/></svg>키는 이 기기 안에 암호화해 저장하고, 쓸 때 기기에서 해당 회사로 바로 보내요. StoryVoice 서버로는 가지 않아요.</p>
   <p id="keyMsg" class="muted small" role="status"></p>
   <div class="row wrap">
     <button id="keyDelete" class="ghost danger">키 모두 지우기</button>

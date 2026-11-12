@@ -1,4 +1,6 @@
 import { saveKey, loadKey, clearKeys, hasPin, setPin, checkPin } from "./keystore.js";
+import { initBook } from "./book.js";
+import { checkHfToken } from "./imagegen.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -26,8 +28,8 @@ $("btnTheme").onclick = () => {
 };
 setInterval(() => { if ((root.dataset.pref || "auto") === "auto") applyTheme("auto"); }, 60_000);
 const cssVar = (n) => getComputedStyle(root).getPropertyValue(n).trim();
-const MAX_MS = 90_000;
-const state = { blob: null, name: "", live: { final: [], interim: "", startedAt: 0 }, keys: { openai: "", xai: "" } };
+const MAX_MS = 180_000;
+const state = { result: null, blob: null, name: "", live: { final: [], interim: "", startedAt: 0 }, keys: { openai: "", xai: "" } };
 
 // ---------- 환경 점검 ----------
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -210,7 +212,7 @@ $("btnRec").onclick = () => (rec && rec.state === "recording" ? stopRec() : star
 $("fileIn").onchange = (e) => {
   const f = e.target.files[0];
   if (!f) return;
-  if (f.size > 25 * 1024 * 1024) { showErr("파일이 25MB보다 커요. 90초 이내로 잘라서 올려 주세요."); return; }
+  if (f.size > 25 * 1024 * 1024) { showErr("파일이 25MB보다 커요. 3분 이내로 잘라서 올려 주세요."); return; }
   setTake(f, f.name, `올린 파일 · ${f.name} · ${(f.size / 1024).toFixed(0)}KB`);
   setMic("파일을 올렸어요. 아래에서 받아쓰기를 눌러 주세요.", "ok");
 };
@@ -257,6 +259,8 @@ const notes = {
   "whisper-base": "음성이 기기 밖으로 나가지 않아요. 처음 한 번 약 80MB를 내려받아요(와이파이 권장). 한국어 정확도는 보통.",
   "whisper-small": "더 정확하지만 처음 약 250MB를 내려받고 느려요. 휴대폰 메모리가 적으면 실패할 수 있어요.",
   live: "녹음할 때 '실시간 받아쓰기'를 켜 두어야 해요. 올린 파일에는 쓸 수 없어요. 시간 정보는 대략치예요.",
+  "groq-turbo": "부모 설정에 무료 Groq 키가 필요해요. 몇 초 만에 끝나고 구간별 시간도 줘요. 음성이 Groq 서버로 가요(무료: 하루 8시간 분량).",
+  "groq-v3": "turbo보다 조금 느리지만 더 정확해요. 무료 Groq 키 필요, 음성이 Groq 서버로 가요.",
   openai: "부모 설정에 OpenAI 키가 필요해요. 단어·구간별 시간을 줘요. 요금은 키 주인에게 청구돼요(분당 $0.006).",
   xai: "부모 설정에 xAI 키가 필요해요. 단어별 시간을 줘요. 요금은 키 주인에게 청구돼요(시간당 $0.10).",
 };
@@ -272,6 +276,7 @@ function prog(on, pct, text) {
 function fmtS(s) { if (s == null || isNaN(s)) return "?"; const m = Math.floor(s / 60); return `${m}:${(s - m * 60).toFixed(1).padStart(4, "0")}`; }
 
 function showResult(text, segs, note) {
+  state.result = { segs: segs || [], note, engine: $("method").value };
   $("transcript").value = text.trim();
   $("timingNote").textContent = note;
   const ol = $("segments"); ol.innerHTML = "";
@@ -343,6 +348,27 @@ async function callOpenAI(key) {
   const segs = (j.segments || []).map((s) => ({ start: s.start, end: s.end, text: s.text.trim() }));
   return { text: j.text || "", segs, note: `OpenAI whisper-1 · 구간 ${segs.length}개, 단어 ${(j.words || []).length}개의 시간 정보` };
 }
+async function callGroq(key, model) {
+  const fd = new FormData();
+  fd.append("file", state.blob, state.name || "audio.webm");
+  fd.append("model", model);
+  fd.append("language", "ko");
+  fd.append("response_format", "verbose_json");
+  fd.append("timestamp_granularities[]", "segment");
+  fd.append("temperature", "0");
+  let r;
+  try { r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", { method: "POST", headers: { Authorization: "Bearer " + key }, body: fd }); }
+  catch { throw new Error("Groq에 연결하지 못했어요. 인터넷 연결을 확인해 주세요."); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    if (r.status === 401) throw new Error("Groq 키가 맞지 않아요. 부모 설정에서 gsk_로 시작하는 키를 다시 넣어 주세요.");
+    if (r.status === 429) throw new Error("Groq 무료 사용량을 잠시 다 썼어요. 1분쯤 뒤 다시 해 주세요.");
+    if (r.status === 413) throw new Error("파일이 너무 커요(무료는 25MB까지).");
+    throw new Error(`Groq 오류 ${r.status}: ${(j.error && j.error.message) || ""}`);
+  }
+  const segs = (j.segments || []).map((s) => ({ start: s.start, end: s.end, text: String(s.text || "").trim() }));
+  return { text: j.text || "", segs, note: `Groq ${model} · 구간 ${segs.length}개의 시간 정보` };
+}
 async function callXai(key) {
   const fd = new FormData();
   fd.append("model", "grok-voice-transcribe-2.0");
@@ -372,6 +398,13 @@ $("btnStt").onclick = async () => {
       if (!L.final.length && !L.interim) throw new Error("실시간 받아쓰기 결과가 없어요. '녹음하면서 실시간 받아쓰기'를 켜고 다시 녹음하세요.");
       const segs = L.final.length ? L.final : [{ text: L.interim, start: 0, end: null }];
       showResult(segs.map((s) => s.text).join(" "), segs, "브라우저 실시간 받아쓰기 · 시간은 결과가 도착한 시각 기준의 대략치");
+    } else if (m.startsWith("groq")) {
+      if (!state.blob) throw new Error("먼저 녹음하거나 파일을 올려 주세요.");
+      const key = await loadKey("groq");
+      if (!key) throw new Error("부모 설정에서 무료 Groq 키를 먼저 넣어 주세요.");
+      prog(true, null, "Groq로 보내는 중…");
+      const r = await callGroq(key, m === "groq-v3" ? "whisper-large-v3" : "whisper-large-v3-turbo");
+      showResult(r.text, r.segs, r.note);
     } else if (m === "openai" || m === "xai") {
       if (!state.blob) throw new Error("먼저 녹음하거나 파일을 올려 주세요.");
       const key = await loadKey(m);
@@ -383,7 +416,7 @@ $("btnStt").onclick = async () => {
       if (!state.blob) throw new Error("먼저 녹음하거나 파일을 올려 주세요.");
       prog(true, null, "소리 파일 읽는 중…");
       const { data, duration } = await decode16k(state.blob);
-      if (duration > 95) throw new Error("90초 이내로 녹음해 주세요.");
+      if (duration > 185) throw new Error("기기 안 받아쓰기는 3분 이내만 돼요. 더 길면 Groq 방식을 써 주세요.");
       const res = await runWhisper("onnx-community/" + m, data);
       const chunks = res.out.chunks || [];
       const segs = chunks.map((c) => ({ text: c.text.trim(), start: c.timestamp[0], end: c.timestamp[1] }));
@@ -416,29 +449,44 @@ function askPin() {
     };
   });
 }
+const KEYS = [["openai", "keyOpenai", "stOpenai"], ["xai", "keyXai", "stXai"], ["groq", "keyGroq", "stGroq"], ["hf", "keyHf", "stHf"]];
 $("btnParent").onclick = async () => {
   if (!(await askPin())) return;
-  const [o, x] = await Promise.all([loadKey("openai").catch(() => ""), loadKey("xai").catch(() => "")]);
-  $("keyOpenai").value = o; $("keyXai").value = x;
-  keyStates(o, x);
-  $("keyMsg").textContent = (o || x) ? "저장된 키가 있어요." : "저장된 키가 없어요. 무료 방식은 키 없이 쓸 수 있어요.";
+  const vals = await Promise.all(KEYS.map(([k]) => loadKey(k).catch(() => "")));
+  KEYS.forEach(([, id], i) => { $(id).value = vals[i]; });
+  keyStates();
+  $("keyMsg").textContent = vals.some(Boolean) ? "저장된 키가 있어요." : "저장된 키가 없어요. 기기 안 받아쓰기와 문장 나누기는 키 없이 돼요.";
   $("dlgParent").showModal();
 };
 $("keySave").onclick = async () => {
-  await saveKey("openai", $("keyOpenai").value.trim());
-  await saveKey("xai", $("keyXai").value.trim());
-  keyStates($("keyOpenai").value.trim(), $("keyXai").value.trim());
+  for (const [k, id] of KEYS) await saveKey(k, $(id).value.trim());
+  keyStates();
   $("keyMsg").textContent = "이 기기에 저장했어요.";
 };
-$("keyDelete").onclick = async () => { await clearKeys(); $("keyOpenai").value = $("keyXai").value = ""; keyStates("", ""); $("keyMsg").textContent = "키를 모두 지웠어요."; };
-function keyStates(o, x) {
-  for (const [id, v] of [["stOpenai", o], ["stXai", x]]) { $(id).textContent = v ? "저장됨" : "없음"; $(id).classList.toggle("on", !!v); }
+$("keyDelete").onclick = async () => { await clearKeys(); for (const [, id] of KEYS) $(id).value = ""; keyStates(); $("keyMsg").textContent = "키를 모두 지웠어요."; };
+function keyStates() {
+  for (const [, id, st] of KEYS) { const v = $(id).value.trim(); $(st).textContent = v ? "저장됨" : "없음"; $(st).classList.toggle("on", !!v); }
 }
+$("keyTest").onclick = async () => {
+  const g = $("keyGroq").value.trim(), h = $("keyHf").value.trim(), out = [];
+  $("keyMsg").textContent = "확인 중…";
+  if (g) {
+    try { const r = await fetch("https://api.groq.com/openai/v1/models", { headers: { Authorization: "Bearer " + g } }); out.push(r.ok ? "Groq 키 ✓" : r.status === 401 ? "Groq 키가 맞지 않아요" : "Groq 확인 실패 " + r.status); }
+    catch { out.push("Groq에 연결하지 못했어요"); }
+  }
+  if (h) { try { out.push(`HF 토큰 ✓ (${await checkHfToken(h)})`); } catch (e) { out.push("HF: " + e.message); } }
+  $("keyMsg").textContent = out.length ? out.join(" · ") + (out.some((x) => x.includes("✓")) ? " — ‘저장’을 눌러야 저장돼요." : "") : "확인할 무료 키를 먼저 넣어 주세요.";
+};
 for (const b of document.querySelectorAll(".show")) {
   b.onclick = () => { const i = $(b.dataset.for); const show = i.type === "password"; i.type = show ? "text" : "password"; b.textContent = show ? "숨기기" : "보기"; };
 }
-$("dlgParent").addEventListener("close", () => { for (const id of ["keyOpenai", "keyXai"]) $(id).type = "password"; for (const b of document.querySelectorAll(".show")) b.textContent = "보기"; });
+$("dlgParent").addEventListener("close", () => { for (const [, id] of KEYS) $(id).type = "password"; for (const b of document.querySelectorAll(".show")) b.textContent = "보기"; });
 $("pinIn").addEventListener("keydown", (e) => { if (e.key === "Enter") $("pinOk").click(); });
 $("keyClose").onclick = () => $("dlgParent").close();
+
+// 오프라인 다시 열기용(웹만; 안드로이드 앱은 파일이 앱 안에 있어 필요 없음)
+if (!isApp && "serviceWorker" in navigator && window.isSecureContext) navigator.serviceWorker.register("./sw.js").catch(() => {});
+
+initBook({ askPin, getTake: () => state.blob, getResult: () => state.result, loadKey });
 
 window.__sv = { state, setTake }; // 자동 점검용
