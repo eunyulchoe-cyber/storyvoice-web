@@ -1,6 +1,31 @@
 import { saveKey, loadKey, clearKeys, hasPin, setPin, checkPin } from "./keystore.js";
 
 const $ = (id) => document.getElementById(id);
+
+// ---------- 낮/밤 화면 ----------
+const root = document.documentElement;
+const SUN = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.2 5.2l1.4 1.4M17.4 17.4l1.4 1.4M5.2 18.8l1.4-1.4M17.4 6.6l1.4-1.4"/></svg>';
+const MOON = '<svg viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg>';
+const AUTO = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" style="fill:currentColor"/></svg>';
+function autoTheme() { const h = new Date().getHours(); return h >= 19 || h < 6 ? "night" : "day"; }
+function applyTheme(pref) {
+  const t = pref === "auto" ? autoTheme() : pref;
+  root.dataset.theme = t; root.dataset.pref = pref;
+  document.querySelector('meta[name="theme-color"]').content = t === "night" ? "#1E2240" : "#FFF8EE";
+  const label = { auto: `자동(지금 ${t === "night" ? "밤" : "낮"})`, day: "낮", night: "밤" }[pref];
+  $("themeIcon").innerHTML = pref === "auto" ? AUTO : pref === "night" ? MOON : SUN;
+  $("themeLabel").textContent = label;
+  $("btnTheme").setAttribute("aria-label", `화면: ${label}. 눌러서 바꾸기`);
+  $("btnTheme").title = `화면: ${label}`;
+}
+applyTheme(localStorage.getItem("sv-theme") || "auto");
+$("btnTheme").onclick = () => {
+  const order = ["auto", "day", "night"];
+  const next = order[(order.indexOf(root.dataset.pref || "auto") + 1) % 3];
+  localStorage.setItem("sv-theme", next); applyTheme(next);
+};
+setInterval(() => { if ((root.dataset.pref || "auto") === "auto") applyTheme("auto"); }, 60_000);
+const cssVar = (n) => getComputedStyle(root).getPropertyValue(n).trim();
 const MAX_MS = 90_000;
 const state = { blob: null, name: "", live: { final: [], interim: "", startedAt: 0 }, keys: { openai: "", xai: "" } };
 
@@ -34,14 +59,14 @@ async function checkMic() {
   try {
     const p = await navigator.permissions.query({ name: "microphone" });
     const show = () => {
-      if (p.state === "granted") setMic("마이크 허용됨. 녹음 시작을 누르세요.", "ok");
+      if (p.state === "granted") setMic("준비됐어요. 동그란 버튼을 누르면 녹음이 시작돼요.", "ok");
       else if (p.state === "denied") setMic(deniedHelp, "bad");
-      else setMic("녹음 시작을 누르면 마이크 허용 창이 떠요. '허용'을 눌러 주세요.");
+      else setMic("동그란 버튼을 누르면 마이크 허용 창이 떠요. ‘허용’을 눌러 주세요.");
     };
     show();
     p.onchange = show;
   } catch {
-    setMic("녹음 시작을 누르면 마이크 허용 창이 떠요. '허용'을 눌러 주세요.");
+    setMic("동그란 버튼을 누르면 마이크 허용 창이 떠요. ‘허용’을 눌러 주세요.");
   }
 }
 checkMic();
@@ -62,20 +87,57 @@ function pickMime() {
 }
 function extFor(type) { return type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : type.includes("wav") ? "wav" : type.includes("mpeg") ? "mp3" : "webm"; }
 
+// 목소리 물결: 최근 음량을 둥근 막대로 흘려 보여 줌
+const BAR = 5, GAP = 4;
+let levels = [];
+function paintWave(live) {
+  const cv = $("meter"), g = cv.getContext("2d"), dpr = devicePixelRatio || 1;
+  const w = cv.clientWidth, h = cv.clientHeight || 64;
+  if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  const n = Math.floor(w / (BAR + GAP));
+  const data = levels.slice(-n);
+  const pad = n - data.length;
+  for (let i = 0; i < n; i++) {
+    const v = i < pad ? 0 : data[i - pad];
+    const bh = Math.max(4, v * (h - 8));
+    g.fillStyle = i < pad || !live ? cssVar("--wave-rest") : cssVar("--wave");
+    const x = i * (BAR + GAP), y = (h - bh) / 2;
+    g.beginPath(); g.roundRect ? g.roundRect(x, y, BAR, bh, 3) : g.rect(x, y, BAR, bh); g.fill();
+  }
+}
 function drawMeter() {
-  const cv = $("meter"), g = cv.getContext("2d");
-  cv.width = cv.clientWidth * devicePixelRatio; cv.height = 36 * devicePixelRatio;
+  levels = [];
   const buf = new Uint8Array(analyser.fftSize);
-  const loop = () => {
-    analyser.getByteTimeDomainData(buf);
-    let sum = 0; for (const v of buf) { const x = (v - 128) / 128; sum += x * x; }
-    const lvl = Math.min(1, Math.sqrt(sum / buf.length) * 3.2);
-    g.clearRect(0, 0, cv.width, cv.height);
-    g.fillStyle = lvl > 0.85 ? "#c0392b" : "#2f5bd3";
-    g.fillRect(0, 0, cv.width * lvl, cv.height);
+  let last = 0;
+  const loop = (ts) => {
+    if (!last || ts - last > 60) {
+      analyser.getByteTimeDomainData(buf);
+      let sum = 0; for (const v of buf) { const x = (v - 128) / 128; sum += x * x; }
+      levels.push(Math.min(1, Math.sqrt(sum / buf.length) * 4));
+      if (levels.length > 400) levels.shift();
+      last = ts;
+    }
+    paintWave(true);
     raf = requestAnimationFrame(loop);
   };
-  loop();
+  raf = requestAnimationFrame(loop);
+}
+requestAnimationFrame(() => paintWave(false));
+window.addEventListener("resize", () => paintWave(false));
+
+// 녹음 중 다정한 안내 바꾸기
+const TIPS = ["아이에게 말하듯이, 천천히 읽어 주세요.", "등장인물마다 목소리를 살짝 바꿔 봐도 좋아요.", "문장 사이에 한 박자 쉬어 주면 그림책이 더 잘 넘어가요.", "틀려도 괜찮아요. 받아쓴 글은 나중에 고칠 수 있어요."];
+let tipTimer = null;
+function setRecUI(on) {
+  const b = $("btnRec");
+  b.classList.toggle("recording", on);
+  b.setAttribute("aria-label", on ? "녹음 정지" : "녹음 시작");
+  $("recLabel").textContent = on ? "다 읽었으면 눌러서 정지" : (state.blob ? "다시 녹음하기" : "눌러서 녹음 시작");
+  clearInterval(tipTimer);
+  if (on) { let i = 0; tipTimer = setInterval(() => { i = (i + 1) % TIPS.length; $("tip").textContent = TIPS[i]; }, 7000); }
+  else $("tip").textContent = TIPS[0];
 }
 
 async function startRec() {
@@ -96,9 +158,8 @@ async function startRec() {
   rec.onstop = onRecStop;
   rec.start(250);
   t0 = Date.now();
-  setMic("● 녹음 중입니다. 다 읽으면 정지를 누르세요.", "bad");
-  $("btnRec").textContent = "■ 정지";
-  $("btnRec").classList.add("recording");
+  setMic("● 녹음 중이에요. 다 읽으면 정지를 눌러 주세요.", "recording");
+  setRecUI(true);
   tick = setInterval(() => {
     const ms = Date.now() - t0;
     $("timer").textContent = fmt(ms);
@@ -118,8 +179,7 @@ function stopRec() {
   stream.getTracks().forEach((t) => t.stop());
   actx && actx.close();
   if (recog) { try { recog.stop(); } catch {} }
-  $("btnRec").textContent = "● 다시 녹음";
-  $("btnRec").classList.remove("recording");
+  paintWave(false);
 }
 
 function onRecStop() {
@@ -127,7 +187,8 @@ function onRecStop() {
   const blob = new Blob(chunks, { type });
   const ms = Date.now() - t0;
   setTake(blob, `녹음-${new Date().toISOString().slice(11, 19).replace(/:/g, "")}.${extFor(type)}`, `내 녹음 · ${fmt(ms)} · ${(blob.size / 1024).toFixed(0)}KB · ${type}`);
-  setMic("녹음 완료. 아래에서 다시 들어 보고 받아쓰기를 하세요.", "ok");
+  setMic("잘 녹음됐어요. 다시 들어 보고, 아래에서 받아쓰기를 눌러 주세요.", "ok");
+  setRecUI(false);
 }
 
 function setTake(blob, name, info) {
@@ -147,6 +208,7 @@ $("fileIn").onchange = (e) => {
   if (!f) return;
   if (f.size > 25 * 1024 * 1024) { showErr("파일이 25MB보다 커요. 90초 이내로 잘라서 올려 주세요."); return; }
   setTake(f, f.name, `올린 파일 · ${f.name} · ${(f.size / 1024).toFixed(0)}KB`);
+  setMic("파일을 올렸어요. 아래에서 받아쓰기를 눌러 주세요.", "ok");
 };
 
 // ---------- 실시간 받아쓰기 (Web Speech API) ----------
@@ -177,6 +239,15 @@ function startLive() {
   try { recog.start(); } catch (e) { box.textContent = "실시간 받아쓰기를 시작하지 못했어요."; }
 }
 
+// 다시 들을 때 읽는 구간 빛내기
+$("player").addEventListener("timeupdate", () => {
+  const t = $("player").currentTime;
+  for (const li of $("segments").children) {
+    const on = li.dataset.s != null && t >= +li.dataset.s && t < +li.dataset.e;
+    li.classList.toggle("on", on);
+  }
+});
+
 // ---------- 받아쓰기 ----------
 const notes = {
   "whisper-base": "음성이 기기 밖으로 나가지 않아요. 처음 한 번 약 80MB를 내려받아요(와이파이 권장). 한국어 정확도는 보통.",
@@ -202,6 +273,7 @@ function showResult(text, segs, note) {
   const ol = $("segments"); ol.innerHTML = "";
   for (const s of segs) {
     const li = document.createElement("li");
+    if (s.start != null && !isNaN(s.start)) { li.dataset.s = s.start; li.dataset.e = s.end ?? s.start; }
     const t = document.createElement("span"); t.className = "t"; t.textContent = `${fmtS(s.start)}–${fmtS(s.end)}`;
     li.append(t, document.createTextNode(s.text));
     ol.append(li);
@@ -344,15 +416,25 @@ $("btnParent").onclick = async () => {
   if (!(await askPin())) return;
   const [o, x] = await Promise.all([loadKey("openai").catch(() => ""), loadKey("xai").catch(() => "")]);
   $("keyOpenai").value = o; $("keyXai").value = x;
+  keyStates(o, x);
   $("keyMsg").textContent = (o || x) ? "저장된 키가 있어요." : "저장된 키가 없어요. 무료 방식은 키 없이 쓸 수 있어요.";
   $("dlgParent").showModal();
 };
 $("keySave").onclick = async () => {
   await saveKey("openai", $("keyOpenai").value.trim());
   await saveKey("xai", $("keyXai").value.trim());
+  keyStates($("keyOpenai").value.trim(), $("keyXai").value.trim());
   $("keyMsg").textContent = "이 기기에 저장했어요.";
 };
-$("keyDelete").onclick = async () => { await clearKeys(); $("keyOpenai").value = $("keyXai").value = ""; $("keyMsg").textContent = "키를 모두 지웠어요."; };
+$("keyDelete").onclick = async () => { await clearKeys(); $("keyOpenai").value = $("keyXai").value = ""; keyStates("", ""); $("keyMsg").textContent = "키를 모두 지웠어요."; };
+function keyStates(o, x) {
+  for (const [id, v] of [["stOpenai", o], ["stXai", x]]) { $(id).textContent = v ? "저장됨" : "없음"; $(id).classList.toggle("on", !!v); }
+}
+for (const b of document.querySelectorAll(".show")) {
+  b.onclick = () => { const i = $(b.dataset.for); const show = i.type === "password"; i.type = show ? "text" : "password"; b.textContent = show ? "숨기기" : "보기"; };
+}
+$("dlgParent").addEventListener("close", () => { for (const id of ["keyOpenai", "keyXai"]) $(id).type = "password"; for (const b of document.querySelectorAll(".show")) b.textContent = "보기"; });
+$("pinIn").addEventListener("keydown", (e) => { if (e.key === "Enter") $("pinOk").click(); });
 $("keyClose").onclick = () => $("dlgParent").close();
 
 window.__sv = { state, setTake }; // 자동 점검용

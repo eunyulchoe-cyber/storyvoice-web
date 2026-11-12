@@ -1,85 +1,171 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" data-theme="day">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#1f2a44">
-<title>StoryVoice · 녹음과 받아쓰기 (M1)</title>
+<meta name="theme-color" content="#FFF8EE">
+<meta name="description" content="엄마·아빠가 읽어 준 목소리를 글로 받아쓰는 StoryVoice 첫 단계(M1)">
+<title>StoryVoice · 내 목소리로 읽어 주기</title>
+<script>
+  // 깜빡임 없이 테마 먼저 정하기: 저장된 선택(낮/밤) 또는 자동(19시~6시 밤)
+  (function () {
+    var pref = localStorage.getItem("sv-theme") || "auto";
+    var h = new Date().getHours();
+    var t = pref === "auto" ? (h >= 19 || h < 6 ? "night" : "day") : pref;
+    document.documentElement.dataset.theme = t;
+    document.documentElement.dataset.pref = pref;
+  })();
+</script>
+<!-- 글꼴: Pretendard, 고운돋움, 주아 — 모두 SIL Open Font License 1.1 (fonts/LICENSES.md) -->
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Jua&display=swap">
 <link rel="stylesheet" href="style.css">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%F0%9F%93%96%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2216%22 fill=%22%23FBEFD9%22/%3E%3Cpath d=%22M14 20c7-3 13-2 18 2v26c-5-4-11-5-18-2z%22 fill=%22%23E8785A%22/%3E%3Cpath d=%22M50 20c-7-3-13-2-18 2v26c5-4 11-5 18-2z%22 fill=%22%23F2B544%22/%3E%3C/svg%3E">
 </head>
 <body>
-<header>
-  <h1>StoryVoice <small>M1 · 녹음·받아쓰기</small></h1>
-  <button id="btnParent" class="ghost">부모 설정</button>
+<header class="top">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 64 64" aria-hidden="true"><path d="M10 18c8-4 15-3 22 2v30c-7-5-14-6-22-2z" style="fill:var(--coral)"/><path d="M54 18c-8-4-15-3-22 2v30c7-5 14-6 22-2z" style="fill:var(--honey)"/></svg>
+    <span class="wordmark">StoryVoice</span>
+  </div>
+  <div class="top-actions">
+    <button id="btnTheme" class="icon-btn" aria-label="화면 밝기: 자동"><span id="themeIcon" aria-hidden="true"></span><span id="themeLabel" class="sr-label">자동</span></button>
+    <button id="btnParent" class="pill">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+      부모 설정
+    </button>
+  </div>
 </header>
 
-<div id="envWarn" class="warn" hidden></div>
+<div id="envWarn" class="warn" role="alert" hidden></div>
 
 <main id="main">
-  <section class="card">
-    <h2>1. 낭독 녹음</h2>
-    <p id="micState" class="state">마이크 상태 확인 중…</p>
-    <div class="rec-row">
-      <button id="btnRec" class="primary big">● 녹음 시작</button>
-      <div class="timer"><span id="timer">0:00</span><span class="muted"> / 1:30</span></div>
+  <!-- 소개: 무엇을 하는 앱인지, 지금 되는 것과 준비 중인 것 -->
+  <section class="hero card" aria-labelledby="heroTitle">
+    <div class="hero-art" aria-hidden="true">
+      <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <radialGradient id="g-sky" cx="70%" cy="20%" r="90%"><stop offset="0" style="stop-color:var(--sky1)"/><stop offset="1" style="stop-color:var(--sky2)"/></radialGradient>
+          <filter id="wc"><feTurbulence type="fractalNoise" baseFrequency=".035" numOctaves="3" seed="4"/><feDisplacementMap in="SourceGraphic" scale="6"/></filter>
+        </defs>
+        <rect width="320" height="180" fill="url(#g-sky)"/>
+        <circle cx="236" cy="46" r="22" style="fill:var(--moon)" filter="url(#wc)"/>
+        <g style="fill:var(--moon)" opacity=".8"><circle cx="40" cy="30" r="1.6"/><circle cx="90" cy="18" r="1.2"/><circle cx="150" cy="40" r="1.4"/><circle cx="290" cy="90" r="1.2"/><circle cx="190" cy="16" r="1"/></g>
+        <path d="M0 130 C60 110 120 120 170 132 S270 118 320 126 V180 H0z" style="fill:var(--hill1)" filter="url(#wc)"/>
+        <path d="M0 150 C80 136 160 146 220 156 S300 146 320 150 V180 H0z" style="fill:var(--hill2)" filter="url(#wc)"/>
+        <g transform="translate(96 108)">
+          <g style="fill:var(--fox)"><rect x="4" y="26" width="4" height="10" rx="2"/><rect x="22" y="26" width="4" height="10" rx="2"/></g>
+          <path d="M0 26 C-18 30 -30 18 -26 8 C-20 16 -10 18 0 16z" style="fill:var(--fox)"/>
+          <ellipse cx="14" cy="22" rx="16" ry="11" style="fill:var(--fox)"/>
+          <circle cx="30" cy="10" r="9" style="fill:var(--fox)"/>
+          <path d="M24 3 L27 -8 L32 2z M32 2 L38 -7 L38 5z" style="fill:var(--fox)"/>
+          <path d="M36 12 L44 14 L36 16z" style="fill:var(--fox)"/>
+          <circle cx="33" cy="9" r="1.3" fill="#3B2F2A"/>
+          <path d="M-24 10 C-20 16 -14 18 -10 17" stroke="#FFF8EE" stroke-width="3" fill="none" stroke-linecap="round"/>
+        </g>
+        <g transform="translate(232 112)"><rect x="0" y="10" width="34" height="26" rx="3" style="fill:var(--house)"/><path d="M-4 12 L17 -6 L38 12z" style="fill:var(--roof)"/><rect x="12" y="18" width="10" height="10" rx="2" style="fill:var(--honey)"/></g>
+      </svg>
+      <span class="badge">샘플 그림 · 미리보기</span>
     </div>
-    <canvas id="meter" height="36" aria-label="음량 막대"></canvas>
-    <label class="check"><input type="checkbox" id="liveStt"> 녹음하면서 실시간 받아쓰기 (무료, 지원 브라우저만)</label>
+    <h1 id="heroTitle">오늘 밤 읽어 준 그 목소리 그대로,<br>우리 아이만의 그림책으로</h1>
+    <p class="sample-line" aria-label="샘플 문장">
+      <span class="w">작은</span> <span class="w">여우가</span> <span class="w">달빛</span> <span class="w">아래</span> <span class="w">숲길을</span> <span class="w">걸었어요.</span>
+    </p>
+    <ol class="journey">
+      <li class="now"><b>1</b><span>책을 소리 내어 읽어 주세요</span><em>지금 가능</em></li>
+      <li class="now"><b>2</b><span>목소리를 글로 받아써요</span><em>지금 가능</em></li>
+      <li class="soon"><b>3</b><span>그림책으로 만들어요</span><em>준비 중</em></li>
+    </ol>
+    <p class="fine">지금은 첫 단계(녹음·받아쓰기)만 돼요. 위 그림과 글자 빛남은 앞으로의 모습을 보여 주는 샘플이에요.</p>
+    <a href="#recCard" class="cta">읽어 주러 가기</a>
+  </section>
+
+  <!-- 1. 녹음 -->
+  <section class="card rec" id="recCard" aria-labelledby="recTitle">
+    <h2 id="recTitle"><span class="step">1</span> 읽어 주기</h2>
+    <div class="prompt">
+      <p class="prompt-tip" id="tip">아이에게 말하듯이, 천천히 읽어 주세요.</p>
+      <p class="prompt-text">“작은 여우가 달빛 아래 숲길을 걸었어요. 개울을 건너고, 오래된 나무 아래에서 작은 집을 찾았지요.”</p>
+      <p class="prompt-sub">이 문장이나, 좋아하는 책 한 쪽을 읽어도 돼요. (최대 1분 30초)</p>
+    </div>
+    <p id="micState" class="state" role="status" aria-live="polite">마이크 상태 확인 중…</p>
+    <canvas id="meter" aria-label="목소리 물결" role="img"></canvas>
+    <div class="timer" aria-live="off"><span id="timer">0:00</span><span class="muted"> / 1:30</span></div>
+    <div class="rec-wrap">
+      <button id="btnRec" class="rec-btn" aria-label="녹음 시작">
+        <span class="ring" aria-hidden="true"></span>
+        <svg class="ic-mic" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>
+        <svg class="ic-stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2.5"/></svg>
+      </button>
+      <span id="recLabel" class="rec-label">눌러서 녹음 시작</span>
+    </div>
+    <label class="check"><input type="checkbox" id="liveStt"> <span>녹음하면서 실시간 받아쓰기 <small class="muted">(무료, 지원 브라우저만)</small></span></label>
     <p id="liveText" class="live" hidden></p>
-    <div id="playWrap" hidden>
-      <p class="muted" id="takeInfo"></p>
+    <div id="playWrap" class="take" hidden>
+      <p class="muted small" id="takeInfo"></p>
       <audio id="player" controls preload="metadata"></audio>
     </div>
     <div class="upload">
-      <span class="muted">마이크가 안 되면</span>
+      <span class="muted small">마이크가 안 되나요?</span>
       <label class="filebtn">음성 파일 올리기<input type="file" id="fileIn" accept="audio/*,.m4a,.mp3,.wav,.webm,.ogg,.aac"></label>
     </div>
   </section>
 
-  <section class="card">
-    <h2>2. 받아쓰기</h2>
-    <label for="method">방식</label>
+  <!-- 2. 받아쓰기 -->
+  <section class="card" aria-labelledby="sttTitle">
+    <h2 id="sttTitle"><span class="step">2</span> 글로 받아쓰기</h2>
+    <label for="method">어떻게 받아쓸까요?</label>
     <select id="method">
-      <option value="whisper-base">무료 · 기기 안에서 (빠름, 약 80MB 한 번 다운로드)</option>
-      <option value="whisper-small">무료 · 기기 안에서 (더 정확, 약 250MB 한 번 다운로드)</option>
-      <option value="live">무료 · 실시간 받아쓰기 결과 사용</option>
+      <option value="whisper-base">무료 · 기기 안에서 (빠름, 처음 한 번 약 80MB)</option>
+      <option value="whisper-small">무료 · 기기 안에서 (더 정확, 처음 한 번 약 250MB)</option>
+      <option value="live">무료 · 실시간 받아쓰기 결과 쓰기</option>
       <option value="openai">내 키 · OpenAI whisper-1</option>
       <option value="xai">내 키 · xAI 받아쓰기</option>
     </select>
     <p id="methodNote" class="muted small"></p>
-    <button id="btnStt" class="primary" disabled>받아쓰기 시작</button>
-    <div id="progWrap" hidden><progress id="prog" max="100" value="0"></progress> <span id="progText" class="muted small"></span></div>
-    <p id="sttErr" class="err" hidden></p>
+    <button id="btnStt" class="primary wide" disabled>받아쓰기 시작</button>
+    <div id="progWrap" class="prog" hidden><progress id="prog" max="100" value="0"></progress> <span id="progText" class="muted small"></span></div>
+    <p id="sttErr" class="err" role="alert" hidden></p>
     <div id="resultWrap" hidden>
-      <label for="transcript">받아쓴 글 (고칠 수 있어요)</label>
+      <label for="transcript">받아쓴 글 <small class="muted">(눌러서 고칠 수 있어요)</small></label>
       <textarea id="transcript" rows="6"></textarea>
       <p class="muted small" id="timingNote"></p>
+      <p class="muted small seg-hint">녹음을 다시 들으면 읽는 부분이 빛나요.</p>
       <ol id="segments" class="segments"></ol>
     </div>
   </section>
 
-  <p class="muted small foot">녹음과 키는 이 기기에만 저장됩니다. 무료 '기기 안에서' 방식은 음성이 기기 밖으로 나가지 않습니다. 실시간 받아쓰기는 브라우저 회사 서버(Chrome은 Google)로 음성이 전송될 수 있습니다.</p>
+  <p class="muted small foot">녹음과 키는 이 기기에만 저장돼요. 무료 ‘기기 안에서’ 방식은 목소리가 기기 밖으로 나가지 않아요. 실시간 받아쓰기는 브라우저 회사 서버(Chrome은 Google)로 음성이 갈 수 있어요.</p>
 </main>
 
-<dialog id="dlgPin">
+<dialog id="dlgPin" aria-labelledby="pinTitle">
+  <div class="dlg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
   <h3 id="pinTitle">부모 확인</h3>
   <p class="muted small" id="pinHelp"></p>
-  <input id="pinIn" type="password" inputmode="numeric" maxlength="8" placeholder="숫자 4자리 이상" autocomplete="off">
-  <p id="pinErr" class="err" hidden></p>
+  <input id="pinIn" class="pin" type="password" inputmode="numeric" maxlength="8" placeholder="••••" autocomplete="off" aria-label="부모 PIN">
+  <p id="pinErr" class="err" role="alert" hidden></p>
   <div class="row"><button id="pinCancel" class="ghost">취소</button><button id="pinOk" class="primary">확인</button></div>
 </dialog>
 
-<dialog id="dlgParent">
-  <h3>부모 설정 · 내 API 키</h3>
-  <p class="muted small">키는 이 기기 안에만 암호화해 저장되고, 받아쓰기 때 브라우저에서 해당 회사로 직접 보냅니다. StoryVoice 서버로는 가지 않습니다.</p>
-  <label for="keyOpenai">OpenAI 키</label>
-  <input id="keyOpenai" type="password" placeholder="sk-…" autocomplete="off">
-  <label for="keyXai">xAI 키</label>
-  <input id="keyXai" type="password" placeholder="xai-…" autocomplete="off">
-  <p id="keyMsg" class="muted small"></p>
+<dialog id="dlgParent" aria-labelledby="parentTitle">
+  <h3 id="parentTitle">부모 설정</h3>
+  <p class="muted small">무료 방식은 키 없이 쓸 수 있어요. 더 정확한 받아쓰기를 원하면 내 API 키를 넣어 주세요.</p>
+  <div class="keybox">
+    <div class="keyhead"><label for="keyOpenai">OpenAI 키</label><span id="stOpenai" class="kstate">없음</span></div>
+    <div class="keyrow"><input id="keyOpenai" type="password" placeholder="sk-…" autocomplete="off" spellcheck="false"><button class="ghost show" data-for="keyOpenai" aria-label="OpenAI 키 보기">보기</button></div>
+  </div>
+  <div class="keybox">
+    <div class="keyhead"><label for="keyXai">xAI 키</label><span id="stXai" class="kstate">없음</span></div>
+    <div class="keyrow"><input id="keyXai" type="password" placeholder="xai-…" autocomplete="off" spellcheck="false"><button class="ghost show" data-for="keyXai" aria-label="xAI 키 보기">보기</button></div>
+  </div>
+  <p class="safe"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/></svg>키는 이 기기 안에 암호화해 저장하고, 받아쓰기 때 브라우저에서 해당 회사로 바로 보내요. StoryVoice 서버로는 가지 않아요.</p>
+  <p id="keyMsg" class="muted small" role="status"></p>
   <div class="row wrap">
-    <button id="keyDelete" class="ghost">키 모두 지우기</button>
+    <button id="keyDelete" class="ghost danger">키 모두 지우기</button>
+    <span class="spacer"></span>
     <button id="keyClose" class="ghost">닫기</button>
     <button id="keySave" class="primary">저장</button>
   </div>
