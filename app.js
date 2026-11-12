@@ -255,7 +255,13 @@ async function callOpenAI(key) {
   fd.append("response_format", "verbose_json");
   fd.append("timestamp_granularities[]", "segment");
   fd.append("timestamp_granularities[]", "word");
-  const r = await fetch("https://api.openai.com/v1/audio/transcriptions", { method: "POST", headers: { Authorization: "Bearer " + key }, body: fd });
+  let r;
+  try {
+    r = await fetch("https://api.openai.com/v1/audio/transcriptions", { method: "POST", headers: { Authorization: "Bearer " + key }, body: fd });
+  } catch {
+    // OpenAI는 오류 응답(401 등)에 CORS 헤더를 붙이지 않아 브라우저에는 네트워크 오류로만 보입니다.
+    throw new Error("OpenAI에 연결하지 못했어요. 키가 틀렸거나 크레딧이 없거나 인터넷 문제일 수 있어요. 부모 설정에서 키를 확인해 주세요.");
+  }
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(`OpenAI 오류 ${r.status}: ${(j.error && j.error.message) || ""}`);
   const segs = (j.segments || []).map((s) => ({ start: s.start, end: s.end, text: s.text.trim() }));
