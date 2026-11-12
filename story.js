@@ -3,7 +3,7 @@ export const SCENES = 8;
 export const STYLE_EN = "soft warm watercolor children's picture book illustration, gentle paper texture, warm pastel colors, cozy, hand-painted, no text, no letters, no watermark";
 
 const OUTFIT_WORDS = [
-  [/잠옷|파자마/, "cozy pajamas"], [/수영복/, "a swimsuit"], [/한복/, "a colorful hanbok"], [/드레스/, "a pretty dress"],
+  [/잠옷|파자마|잠자리에|침대에|이불 속/, "cozy pajamas"], [/수영복/, "a swimsuit"], [/한복/, "a colorful hanbok"], [/드레스/, "a pretty dress"],
   [/우주복/, "a spacesuit"], [/교복/, "a school uniform"], [/잠바|패딩|외투|코트/, "a warm winter coat"], [/목욕/, "nothing but a bath towel"],
 ];
 export function guessOutfit(ko) {
@@ -123,12 +123,15 @@ export function characterPrompt(charDesc) {
 }
 export function panelPrompt(scene, charDesc, useRef) {
   const what = scene.en ? scene.en : `An illustration of this moment of a Korean children's story: "${scene.ko}"`;
+  const o = scene.outfit;
+  // 옷이 바뀌는 장면: 기준 그림(image 1)의 옷이 그대로 따라오지 않도록 '옷만 바꾸라'고 분명히 쓰고, 옷이 적힌 설명은 몸 특징용이라고 밝힘
   const who = useRef
-    ? (scene.outfit
-      ? `The main character is the same character as in image 1 (same face, species, fur/hair colors, ears and body proportions) but in this scene wearing ${scene.outfit} instead of the usual clothes.`
+    ? (o
+      ? `The main character is the same character as in image 1 (same face, species, fur/hair colors, ears and body proportions), but in this scene the character is wearing ONLY ${o}. Do NOT draw the clothes, coat, hat, shoes or boots from image 1 on the character; if those clothes appear at all, they hang on a hook or lie aside.`
       : `The main character is exactly the same character as in image 1: identical face, colors, clothing and accessories.`)
-    : `The main character: ${charDesc}${scene.outfit ? `, but in this scene wearing ${scene.outfit}` : ""}.`;
-  return `${what} ${who} ${useRef ? `(Description of the main character: ${charDesc}${scene.outfit ? ", outfit changed as stated" : ""}.)` : ""} Style: ${STYLE_EN}.`.replace(/\s+/g, " ").trim();
+    : `The main character: ${charDesc}${o ? `, but in this scene wearing only ${o} instead of the usual clothes` : ""}.`;
+  const desc = useRef ? (o ? `(Body features of the main character, ignore the clothing words: ${charDesc}.)` : `(Description of the main character: ${charDesc}.)`) : "";
+  return `${what} ${who} ${desc} Style: ${STYLE_EN}.`.replace(/\s+/g, " ").trim();
 }
 
 // ---------- 장면별 소리 구간 ----------
